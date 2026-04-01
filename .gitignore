@@ -32,11 +32,11 @@ checkpoints/
 *.log
 wandb/
 
-# Results and visualizations
-result_*.png
-*.png
-*.jpg
-*.jpeg
+## Results and visualizations
+#result_*.png
+#*.png
+#*.jpg
+#*.jpeg
 
 # Pytest
 .pytest_cache/
