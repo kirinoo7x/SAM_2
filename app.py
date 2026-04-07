@@ -74,8 +74,8 @@ if predictor is not None:
                     multimask_output=False,
                 )
 
-            # Get the mask
-            mask = masks[0]
+            # Get the mask and ensure it's boolean
+            mask = masks[0].astype(bool)
 
             # Create visualization
             mask_overlay = img_rgb.copy()
