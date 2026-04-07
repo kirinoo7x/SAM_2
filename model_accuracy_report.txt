@@ -1,0 +1,41 @@
+======================================================================
+SAM2 CRACK DETECTION - BEST MODEL ACCURACY REPORT
+======================================================================
+
+Generated on: 2026-04-07 21:43:05
+
+MODEL INFORMATION
+----------------------------------------------------------------------
+Model Architecture:    SAM2 Hiera Base+
+Best Checkpoint Epoch: 5
+Dataset:               Crack Detection Dataset
+Test Samples:          54
+Image Size:            1024x1024
+Batch Size:            2
+
+SEGMENTATION ACCURACY METRICS
+----------------------------------------------------------------------
+Average IoU Score:     0.584102 (58.41%)
+Average Dice Score:    0.724674 (72.47%)
+
+LOSS COMPONENTS
+----------------------------------------------------------------------
+Total Loss:            1.088135
+Dice Loss:             0.322402
+Focal Loss:            0.014573
+IoU Loss:              0.474278
+
+PERFORMANCE INTERPRETATION
+----------------------------------------------------------------------
+IoU Score:             Moderate (58.41%)
+Dice Score:            Good (72.47%)
+
+NOTES
+----------------------------------------------------------------------
+- IoU (Intersection over Union): Measures overlap between predicted
+  and ground truth segmentation masks. Higher is better.
+- Dice Score: Measures similarity between predicted and ground truth.
+  Values closer to 1.0 indicate better segmentation accuracy.
+- This model was trained on 5% of the full training dataset.
+
+======================================================================

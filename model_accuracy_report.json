@@ -1,0 +1,19 @@
+{
+  "generated_at": "2026-04-07T21:43:05.697110",
+  "model_info": {
+    "architecture": "SAM2 Hiera Base+",
+    "epoch": 5,
+    "dataset": "Crack Detection Dataset",
+    "test_samples": 54,
+    "image_size": 1024,
+    "batch_size": 2
+  },
+  "metrics": {
+    "avg_iou": 0.5841023855739169,
+    "avg_dice": 0.7246740162372589,
+    "total_loss": 1.088135317519859,
+    "dice_loss": 0.32240181499057347,
+    "focal_loss": 0.014572751432381294,
+    "iou_loss": 0.47427846105010424
+  }
+}

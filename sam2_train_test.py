@@ -2,7 +2,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, Subset
 import numpy as np
 from PIL import Image
 import cv2
@@ -239,27 +239,13 @@ class SAM2Trainer:
 
             # Encode image features
             with torch.set_grad_enabled(True):
-                # Get image embeddings
+                # Get image embeddings using the same approach as predictor
                 backbone_out = self.sam2_model.forward_image(images_prepared)
 
-                # Prepare backbone features (similar to predictor)
-                _, vision_feats, _, _ = self.sam2_model._prepare_backbone_features(backbone_out)
-
-                # Add no_mem_embed if needed
-                if self.sam2_model.directly_add_no_mem_embed:
-                    vision_feats[-1] = vision_feats[-1] + self.sam2_model.no_mem_embed
-
-                # Get backbone feature sizes
-                feat_sizes = [(256, 256), (128, 128), (64, 64)]  # For SAM2 with 1024x1024 input
-
-                # Process features similar to predictor
-                feats = [
-                    feat.permute(1, 2, 0).view(batch_size, -1, *feat_size)
-                    for feat, feat_size in zip(vision_feats[::-1], feat_sizes[::-1])
-                ][::-1]
-
-                image_embed = feats[-1]  # Lowest resolution
-                high_res_feats = feats[:-1]  # Higher resolution features
+                # Use the model's internal feature preparation
+                backbone_out = backbone_out["backbone_fpn"]
+                image_embed = backbone_out[-1]  # Lowest resolution feature
+                high_res_feats = backbone_out[:-1]  # Higher resolution features
 
                 # Create point prompts
                 point_coords, point_labels = self._encode_prompts(batch_size, H, W)
@@ -347,24 +333,13 @@ class SAM2Trainer:
 
             batch_size, _, H, W = images.shape
 
-            # Get image embeddings
+            # Get image embeddings using the same approach as predictor
             backbone_out = self.sam2_model.forward_image(images_prepared)
 
-            # Prepare backbone features
-            _, vision_feats, _, _ = self.sam2_model._prepare_backbone_features(backbone_out)
-
-            if self.sam2_model.directly_add_no_mem_embed:
-                vision_feats[-1] = vision_feats[-1] + self.sam2_model.no_mem_embed
-
-            feat_sizes = [(256, 256), (128, 128), (64, 64)]
-
-            feats = [
-                feat.permute(1, 2, 0).view(batch_size, -1, *feat_size)
-                for feat, feat_size in zip(vision_feats[::-1], feat_sizes[::-1])
-            ][::-1]
-
-            image_embed = feats[-1]
-            high_res_feats = feats[:-1]
+            # Use the model's internal feature preparation
+            backbone_out = backbone_out["backbone_fpn"]
+            image_embed = backbone_out[-1]  # Lowest resolution feature
+            high_res_feats = backbone_out[:-1]  # Higher resolution features
 
             # Create point prompts
             point_coords, point_labels = self._encode_prompts(batch_size, H, W)
@@ -462,9 +437,9 @@ def main():
     MODEL_CFG = "sam2_hiera_b+"  # Config name without .yaml extension
     CHECKPOINT = "checkpoints/sam2_hiera_base_plus.pt"
     BATCH_SIZE = 2
-    NUM_EPOCHS = 10
+    NUM_EPOCHS = 10  # Total epochs (including resumed training)
     LEARNING_RATE = 1e-5
-    IMAGE_SIZE = 1024
+    IMAGE_SIZE = 1024  # Standard SAM2 image size
 
     # Auto-download checkpoint if it doesn't exist
     checkpoint_path = Path(CHECKPOINT)
@@ -483,8 +458,23 @@ def main():
     IOU_WEIGHT = 1.0
 
     # Create datasets
-    train_dataset = CrackDataset(DATA_ROOT, split="Train", image_size=IMAGE_SIZE)
-    test_dataset = CrackDataset(DATA_ROOT, split="Test", image_size=IMAGE_SIZE)
+    train_dataset_full = CrackDataset(DATA_ROOT, split="Train", image_size=IMAGE_SIZE)
+    test_dataset_full = CrackDataset(DATA_ROOT, split="Test", image_size=IMAGE_SIZE)
+
+    # Use only 5% of the data
+    DATA_FRACTION = 0.05
+    train_size = int(len(train_dataset_full) * DATA_FRACTION)
+    test_size = int(len(test_dataset_full) * DATA_FRACTION)
+
+    train_indices = list(range(train_size))
+    test_indices = list(range(test_size))
+
+    train_dataset = Subset(train_dataset_full, train_indices)
+    test_dataset = Subset(test_dataset_full, test_indices)
+
+    print(f"\nUsing {DATA_FRACTION*100}% of data:")
+    print(f"  Training samples: {len(train_dataset)} / {len(train_dataset_full)}")
+    print(f"  Testing samples: {len(test_dataset)} / {len(test_dataset_full)}")
 
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4)
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
@@ -496,12 +486,25 @@ def main():
     optimizer = torch.optim.AdamW(trainer.sam2_model.parameters(), lr=LEARNING_RATE)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=NUM_EPOCHS)
 
+    # Load best model checkpoint if it exists (for resuming training)
+    best_model_path = Path("checkpoints/best_model.pt")
+    if best_model_path.exists():
+        trainer.load_checkpoint(str(best_model_path), optimizer)
+        print(f"\nResuming training from epoch {trainer.current_epoch}")
+        print(f"Previous best loss: {trainer.best_loss:.4f}")
+        # Adjust scheduler to match the resumed epoch
+        for _ in range(trainer.current_epoch):
+            scheduler.step()
+    else:
+        print("\nStarting training from scratch (no checkpoint found)")
+
     # Training loop
     print("\n" + "="*50)
     print("Starting Training")
     print("="*50 + "\n")
 
-    for epoch in range(NUM_EPOCHS):
+    start_epoch = trainer.current_epoch
+    for epoch in range(start_epoch, NUM_EPOCHS):
         print(f"\nEpoch {epoch + 1}/{NUM_EPOCHS}")
 
         # Train
